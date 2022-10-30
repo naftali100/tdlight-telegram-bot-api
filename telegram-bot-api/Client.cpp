@@ -8866,8 +8866,9 @@ td::Status Client::process_get_chat_member_query(PromisedQueryPtr &query) {
 
 td::Status Client::process_get_chat_administrators_query(PromisedQueryPtr &query) {
   auto chat_id = query->arg("chat_id");
+  td::int32 limit = get_integer_arg(query.get(), "limit", 200, 0, 200);
 
-  check_chat(chat_id, AccessRights::ReadMembers, std::move(query), [this](int64 chat_id, PromisedQueryPtr query) {
+  check_chat(chat_id, AccessRights::ReadMembers, std::move(query), [this, limit](int64 chat_id, PromisedQueryPtr query) {
     auto chat_info = get_chat(chat_id);
     CHECK(chat_info != nullptr);
     switch (chat_info->type) {
@@ -8879,7 +8880,7 @@ td::Status Client::process_get_chat_administrators_query(PromisedQueryPtr &query
       case ChatInfo::Type::Supergroup:
         return send_request(
             make_object<td_api::getSupergroupMembers>(
-                chat_info->supergroup_id, make_object<td_api::supergroupMembersFilterAdministrators>(), 0, 100),
+                chat_info->supergroup_id, make_object<td_api::supergroupMembersFilterAdministrators>(), 0, limit),
             td::make_unique<TdOnGetSupergroupMembersCallback>(this, get_chat_type(chat_id), std::move(query)));
       case ChatInfo::Type::Unknown:
       default:
@@ -9797,12 +9798,13 @@ td::Status Client::process_search_messages_query(PromisedQueryPtr &query) {
   auto offset_date = get_integer_arg(query.get(), "offset_date", 0);
   auto offset_chat_id = get_int64_arg(query.get(), "offset_chat_id", 0);
   auto offset_message_id = get_int64_arg(query.get(), "offset_message_id", 0);
+  auto limit = get_integer_arg(query.get(), "limit", 100, 0, 100);
   TRY_RESULT(filter, get_search_messages_filter(query.get()));
   auto min_date = get_integer_arg(query.get(), "min_date", 0);
   auto max_date = get_integer_arg(query.get(), "max_date", 0);
 
   send_request(make_object<td_api::searchMessages>(nullptr, query_.str(), offset_date, offset_chat_id,
-                                                   offset_message_id, 100, std::move(filter), min_date, max_date),
+                                                   offset_message_id, limit, std::move(filter), min_date, max_date),
                td::make_unique<TdOnReturnMessagesCallback>(this, std::move(query)));
   return Status::OK();
 }
@@ -9817,13 +9819,14 @@ td::Status Client::process_search_chat_messages_query(PromisedQueryPtr &query) {
     sender = nullptr;
   }
   auto from_message_id = get_int64_arg(query.get(), "from_message_id", 0);
+  auto limit = get_integer_arg(query.get(), "limit", 100, 0, 100);
   TRY_RESULT(filter, get_search_messages_filter(query.get()));
 
   check_chat(chat_id, AccessRights::Read, std::move(query),
-             [this, query_, sender = std::move(sender), from_message_id, filter = std::move(filter)](
+             [this, query_, sender = std::move(sender), from_message_id, limit, filter = std::move(filter)](
                  int64 chat_id, PromisedQueryPtr query) mutable {
                send_request(make_object<td_api::searchChatMessages>(chat_id, query_.str(), std::move(sender),
-                                                                    from_message_id, 0, 100, std::move(filter), 0),
+                                                                    from_message_id, 0, limit, std::move(filter), 0),
                             td::make_unique<TdOnReturnMessagesCallback>(this, std::move(query)));
              });
   return Status::OK();
